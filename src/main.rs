@@ -27,7 +27,7 @@ async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
 
 #[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
 async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
-    debug!(pin_id = pin_id, "Toggling pin");
+    debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
     StatusCode::ACCEPTED
 }
