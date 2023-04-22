@@ -28,8 +28,7 @@ RUN apt update && \
 COPY . .
 
 RUN rustup target add $(./scripts/platform-to-rust-target.sh)
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    cargo build --release --target $(./scripts/platform-to-rust-target.sh)
+RUN cargo build --release --target $(./scripts/platform-to-rust-target.sh)
 
 # where we'll run this
 FROM debian:bullseye AS deploy
