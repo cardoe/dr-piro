@@ -1,5 +1,5 @@
 use axum::{extract::Path, http::StatusCode, routing::get, Router};
-#[cfg(target = "armv7-unknown-linux-gnueabihf")]
+#[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -12,7 +12,7 @@ async fn api_root() -> &'static str {
     "Hello API World"
 }
 
-#[cfg(target = "armv7-unknown-linux-gnueabihf")]
+#[cfg(all(target_arch = "arm", target_os = "linux"))]
 async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
@@ -25,7 +25,7 @@ async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
     StatusCode::ACCEPTED
 }
 
-#[cfg(not(target = "armv7-unknown-linux-gnueabihf"))]
+#[cfg(not(all(target_arch = "arm", target_os = "linux")))]
 async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
