@@ -8,12 +8,15 @@ use tower_http::trace::TraceLayer;
 use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[cfg(all(target_arch = "arm", target_os = "linux"))]
+mod error;
+
 async fn api_root() -> &'static str {
     "Hello API World"
 }
 
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
-async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
+async fn fire_pin(Path(pin_id): Path<u8>) -> Result<StatusCode, error::Error> {
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
 
@@ -22,11 +25,11 @@ async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
     pin.set_high();
     tokio::time::sleep(Duration::from_secs(1)).await;
     pin.set_low();
-    StatusCode::ACCEPTED
+    Ok(StatusCode::ACCEPTED)
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "linux")))]
-async fn fire_pin(Path(pin_id): Path<u32>) -> StatusCode {
+async fn fire_pin(Path(pin_id): Path<u8>) -> StatusCode {
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
     StatusCode::ACCEPTED
