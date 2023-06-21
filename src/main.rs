@@ -1,4 +1,5 @@
 use axum::{extract::Path, http::StatusCode, routing::get, Router};
+use clap::{value_parser, Parser};
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
 use std::net::SocketAddr;
@@ -63,8 +64,18 @@ async fn shutdown_signal() {
     println!("signal received, starting graceful shutdown");
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Address and Port to listen on
+    #[arg(short, long, default_value = "0.0.0.0:8000", value_parser = value_parser!(SocketAddr))]
+    listen: SocketAddr,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+
     // initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -88,9 +99,8 @@ async fn main() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8000));
-    tracing::debug!("listening on http://{}", addr);
-    axum::Server::bind(&addr)
+    tracing::debug!("listening on http://{}", args.listen);
+    axum::Server::bind(&args.listen)
         .serve(app.layer(TraceLayer::new_for_http()).into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
