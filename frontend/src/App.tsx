@@ -6,7 +6,7 @@ import Button from 'react-bootstrap/Button';
 import Navbar from 'react-bootstrap/Navbar';
 import Alert from 'react-bootstrap/Alert';
 import './App.css';
-import { firePin } from './api';
+import { getPinRange, firePin, PinRange } from './api';
 
 interface LaunchAlertProps {
   pos: number;
@@ -57,19 +57,14 @@ function Launcher({ pos }: LauncherProps) {
   );
 }
 
-
-interface LauncherListProps {
-  num: number;
-}
-
-function LauncherList({ num }: LauncherListProps) {
+function LauncherList({ start, end }: PinRange) {
   return (
     <Container fluid="sm" className="container-md">
     {
-      Array.from(Array(num), (e, i) => {
+      Array.from(Array(end + 1 - start), (e, i) => {
         return (
           <Row key={i} className="justify-content-md-center mb-2">
-            <Launcher pos={i + 1} />
+            <Launcher pos={i + start} />
           </Row>
         );
       })
@@ -98,11 +93,25 @@ function Header() {
 }
 
 function App() {
+  const [pinRange, setPinRange] = useState({ start: 0, end: 0});
+  useEffect(() => {
+    const fetchPinRange = async () => {
+      try {
+        const newPinRange = await getPinRange();
+        setPinRange(newPinRange);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+
+    fetchPinRange();
+  }, []);
+
   return (
     <div className="App">
       <Header />
       <main className="my-5 py-3">
-        <LauncherList num={16} />
+        <LauncherList start={pinRange.start} end={pinRange.end} />
       </main>
     </div>
   );
