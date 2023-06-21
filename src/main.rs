@@ -1,7 +1,8 @@
-use axum::{extract::Path, http::StatusCode, routing::get, Router};
+use axum::{extract::Path, http::StatusCode, response::Json, routing::get, Router};
 use clap::{value_parser, Parser};
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
+use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tower_http::services::{ServeDir, ServeFile};
@@ -9,15 +10,24 @@ use tower_http::trace::TraceLayer;
 use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-#[cfg(all(target_arch = "arm", target_os = "linux"))]
 mod error;
 
 async fn api_root() -> &'static str {
     "Hello API World"
 }
 
+async fn fire_list(_body: String, start: u8, end: u8) -> Json<Value> {
+    Json(json!({ "start": start, "end": end }))
+}
+
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
-async fn fire_pin(Path(pin_id): Path<u8>) -> Result<StatusCode, error::Error> {
+async fn fire_pin(Path(pin_id): Path<u8>, start: u8, end: u8) -> Result<StatusCode, error::Error> {
+    if pin_id < start || pin_id > end {
+        return Err(error::Error::BadRequest(format!(
+            "invalid pin {}, valid range {} - {}",
+            pin_id, start, end
+        )));
+    }
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
 
@@ -30,10 +40,16 @@ async fn fire_pin(Path(pin_id): Path<u8>) -> Result<StatusCode, error::Error> {
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "linux")))]
-async fn fire_pin(Path(pin_id): Path<u8>) -> StatusCode {
+async fn fire_pin(Path(pin_id): Path<u8>, start: u8, end: u8) -> Result<StatusCode, error::Error> {
+    if pin_id < start || pin_id > end {
+        return Err(error::Error::BadRequest(format!(
+            "invalid pin {}, valid range {} - {}",
+            pin_id, start, end
+        )));
+    }
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
-    StatusCode::ACCEPTED
+    Ok(StatusCode::ACCEPTED)
 }
 
 /// Tokio signal handler that will wait for a user to press CTRL+C or term signal
@@ -70,6 +86,14 @@ struct Args {
     /// Address and Port to listen on
     #[arg(short, long, default_value = "0.0.0.0:8000", value_parser = value_parser!(SocketAddr))]
     listen: SocketAddr,
+
+    /// Start Pin
+    #[arg(short, long, default_value_t = 1)]
+    start: u8,
+
+    /// End Pin
+    #[arg(short, long, default_value_t = 16)]
+    end: u8,
 }
 
 #[tokio::main]
@@ -93,8 +117,16 @@ async fn main() {
     let app = Router::new()
         // `GET /api/` goes to `api_root`
         .route("/api/", get(api_root))
+        // `GET /api/fire/ goes to `fire_list`
+        .route(
+            "/api/fire/",
+            get(move |body| fire_list(body, args.start, args.end)),
+        )
         // `GET /api/fire/:pin goes to `fire_pin`
-        .route("/api/fire/:pin", get(fire_pin))
+        .route(
+            "/api/fire/:pin",
+            get(move |path| fire_pin(path, args.start, args.end)),
+        )
         .fallback_service(serve_dir);
 
     // run our app with hyper
