@@ -41,4 +41,4 @@ COPY --from=frontend /app/build /opt/dr-piro/frontend/build/
 
 EXPOSE 8000
 
-CMD ["/opt/dr-piro/dr-piro"]
+ENTRYPOINT ["/opt/dr-piro/dr-piro"]
