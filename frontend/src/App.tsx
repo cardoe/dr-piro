@@ -7,6 +7,7 @@ import Navbar from 'react-bootstrap/Navbar';
 import Alert from 'react-bootstrap/Alert';
 import './App.css';
 import { getPinRange, firePin, PinRange } from './api';
+import { NumberLiteralType } from 'typescript';
 
 interface LaunchAlertProps {
   pos: number;
@@ -31,9 +32,10 @@ function LaunchAlert({ pos, clear }: LaunchAlertProps) {
 
 interface LauncherProps {
   pos: number;
+  label: number;
 }
 
-function Launcher({ pos }: LauncherProps) {
+function Launcher({ pos, label }: LauncherProps) {
   const [clicked, setClicked] = useState(false);
   const [error, setError] = useState('');
 
@@ -49,7 +51,7 @@ function Launcher({ pos }: LauncherProps) {
 
   return (
     <>
-      <Col>Launcher {pos}</Col>
+      <Col>Launcher {label}</Col>
       <Col><Button variant="danger" className="mr-2" value={pos} onClick={handleClick}>Fire</Button></Col>
       {clicked ? <LaunchAlert pos={pos} clear={setClicked}/> : null}
       {error !== '' ? <Alert variant='warning'>Failed to launch</Alert> : null}
@@ -64,7 +66,7 @@ function LauncherList({ start, end }: PinRange) {
       Array.from(Array(end + 1 - start), (e, i) => {
         return (
           <Row key={i} className="justify-content-md-center mb-2">
-            <Launcher pos={i + start} />
+            <Launcher pos={i + start} label={i + 1} />
           </Row>
         );
       })
