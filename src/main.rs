@@ -1,9 +1,16 @@
-use axum::{extract::Path, http::StatusCode, response::Json, routing::get, Router};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::Json,
+    routing::get,
+    Router,
+};
 use clap::{value_parser, Parser};
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
-use serde_json::{json, Value};
+use serde::Serialize;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -12,21 +19,32 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod error;
 
+struct AppState {
+    pin_list: Vec<u8>,
+}
+
+#[derive(Serialize, Debug)]
+struct PinList {
+    pins: Vec<u8>,
+}
+
 async fn api_root() -> &'static str {
     "Hello API World"
 }
 
-async fn fire_list(_body: String, start: u8, end: u8) -> Json<Value> {
-    Json(json!({ "start": start, "end": end }))
+async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinList> {
+    Json(PinList {
+        pins: state.pin_list.clone(),
+    })
 }
 
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
-async fn fire_pin(Path(pin_id): Path<u8>, start: u8, end: u8) -> Result<StatusCode, error::Error> {
-    if pin_id < start || pin_id > end {
-        return Err(error::Error::BadRequest(format!(
-            "invalid pin {}, valid range {} - {}",
-            pin_id, start, end
-        )));
+async fn fire_pin(
+    Path(pin_id): Path<u8>,
+    State(state): State<Arc<AppState>>,
+) -> Result<StatusCode, error::Error> {
+    if !state.contains(&pin_id) {
+        return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
     }
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
@@ -40,12 +58,12 @@ async fn fire_pin(Path(pin_id): Path<u8>, start: u8, end: u8) -> Result<StatusCo
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "linux")))]
-async fn fire_pin(Path(pin_id): Path<u8>, start: u8, end: u8) -> Result<StatusCode, error::Error> {
-    if pin_id < start || pin_id > end {
-        return Err(error::Error::BadRequest(format!(
-            "invalid pin {}, valid range {} - {}",
-            pin_id, start, end
-        )));
+async fn fire_pin(
+    Path(pin_id): Path<u8>,
+    State(state): State<Arc<AppState>>,
+) -> Result<StatusCode, error::Error> {
+    if !state.pin_list.contains(&pin_id) {
+        return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
     }
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -100,6 +118,10 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
+    let pins = (args.start..args.end + 1).collect();
+
+    let shared_state = Arc::new(AppState { pin_list: pins });
+
     // initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -118,15 +140,10 @@ async fn main() {
         // `GET /api/` goes to `api_root`
         .route("/api/", get(api_root))
         // `GET /api/fire/ goes to `fire_list`
-        .route(
-            "/api/fire/",
-            get(move |body| fire_list(body, args.start, args.end)),
-        )
+        .route("/api/fire/", get(fire_list))
         // `GET /api/fire/:pin goes to `fire_pin`
-        .route(
-            "/api/fire/:pin",
-            get(move |path| fire_pin(path, args.start, args.end)),
-        )
+        .route("/api/fire/:pin", get(fire_pin))
+        .with_state(shared_state)
         .fallback_service(serve_dir);
 
     // run our app with hyper

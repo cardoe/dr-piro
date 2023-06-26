@@ -1,6 +1,5 @@
 export interface PinRange {
-    start: number;
-    end: number;
+    pins: Array<number>;
 }
 
 export const getPinRange = async(): Promise<PinRange> => {

@@ -10,11 +10,11 @@ import { getPinRange, firePin, PinRange } from './api';
 import { NumberLiteralType } from 'typescript';
 
 interface LaunchAlertProps {
-  pos: number;
+  label: number;
   clear: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-function LaunchAlert({ pos, clear }: LaunchAlertProps) {
+function LaunchAlert({ label, clear }: LaunchAlertProps) {
   useEffect(() => {
     const timeId = setTimeout(() => {
       clear(false);
@@ -26,16 +26,16 @@ function LaunchAlert({ pos, clear }: LaunchAlertProps) {
   }, []);  
 
   return (
-    <Alert variant='secondary'>Launching {pos}</Alert>
+    <Alert variant='secondary'>Launching {label}</Alert>
   )
 }
 
 interface LauncherProps {
-  pos: number;
+  pin: number;
   label: number;
 }
 
-function Launcher({ pos, label }: LauncherProps) {
+function Launcher({ pin, label }: LauncherProps) {
   const [clicked, setClicked] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,7 +43,7 @@ function Launcher({ pos, label }: LauncherProps) {
     const button: HTMLButtonElement = event.currentTarget;
     setClicked(true);
     try {
-      await firePin(pos);
+      await firePin(pin);
     } catch (err) {
       setError(err as string);
     }
@@ -52,24 +52,22 @@ function Launcher({ pos, label }: LauncherProps) {
   return (
     <>
       <Col>Launcher {label}</Col>
-      <Col><Button variant="danger" className="mr-2" value={pos} onClick={handleClick}>Fire</Button></Col>
-      {clicked ? <LaunchAlert pos={pos} clear={setClicked}/> : null}
+      <Col><Button variant="danger" className="mr-2" value={pin} onClick={handleClick}>Fire</Button></Col>
+      {clicked ? <LaunchAlert label={label} clear={setClicked}/> : null}
       {error !== '' ? <Alert variant='warning'>Failed to launch</Alert> : null}
     </>
   );
 }
 
-function LauncherList({ start, end }: PinRange) {
+function LauncherList({ pins }: PinRange) {
   return (
     <Container fluid="sm" className="container-md">
     {
-      Array.from(Array(end + 1 - start), (e, i) => {
-        return (
-          <Row key={i} className="justify-content-md-center mb-2">
-            <Launcher pos={i + start} label={i + 1} />
+      pins.map((pin, label) =>
+        <Row key={label} className="justify-content-md-center mb-2">
+          <Launcher pin={pin} label={label + 1} />
           </Row>
-        );
-      })
+      )
     }
     </Container>
   );
@@ -95,7 +93,7 @@ function Header() {
 }
 
 function App() {
-  const [pinRange, setPinRange] = useState({ start: 0, end: 0});
+  const [pinRange, setPinRange] = useState({ pins: new Array()});
   useEffect(() => {
     const fetchPinRange = async () => {
       try {
@@ -113,7 +111,7 @@ function App() {
     <div className="App">
       <Header />
       <main className="my-5 py-3">
-        <LauncherList start={pinRange.start} end={pinRange.end} />
+        <LauncherList pins={pinRange.pins} />
       </main>
     </div>
   );
