@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::get,
+    routing::{delete, get, put},
     Router,
 };
 use clap::{value_parser, Parser};
@@ -10,7 +10,7 @@ use clap::{value_parser, Parser};
 use rppal::gpio::Gpio;
 use serde::Serialize;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -20,7 +20,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod error;
 
 struct AppState {
-    pin_list: Vec<u8>,
+    pin_list: Mutex<Vec<u8>>,
 }
 
 #[derive(Serialize, Debug)]
@@ -33,9 +33,33 @@ async fn api_root() -> &'static str {
 }
 
 async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinList> {
-    Json(PinList {
-        pins: state.pin_list.clone(),
-    })
+    match state.pin_list.lock() {
+        Ok(x) => Json(PinList { pins: x.clone() }),
+        Err(_) => Json(PinList { pins: vec![] }),
+    }
+}
+
+async fn enable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>) -> StatusCode {
+    match state.pin_list.lock() {
+        Ok(mut x) => {
+            x.push(pin_id);
+            StatusCode::ACCEPTED
+        }
+        Err(_) => StatusCode::CONFLICT,
+    }
+}
+
+async fn disable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>) -> StatusCode {
+    match state.pin_list.lock() {
+        Ok(mut x) => match x.binary_search(&pin_id) {
+            Ok(idx) => {
+                x.remove(idx);
+                StatusCode::ACCEPTED
+            }
+            Err(_) => StatusCode::NOT_FOUND,
+        },
+        Err(_) => StatusCode::CONFLICT,
+    }
 }
 
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
@@ -43,9 +67,17 @@ async fn fire_pin(
     Path(pin_id): Path<u8>,
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, error::Error> {
-    if !state.contains(&pin_id) {
-        return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
+    match state.pin_list.lock() {
+        Ok(x) => {
+            if !x.contains(&pin_id) {
+                return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
+            }
+        }
+        Err(_) => {
+            return Err(error::Error::Conflict);
+        }
     }
+
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
 
@@ -62,8 +94,15 @@ async fn fire_pin(
     Path(pin_id): Path<u8>,
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, error::Error> {
-    if !state.pin_list.contains(&pin_id) {
-        return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
+    match state.pin_list.lock() {
+        Ok(x) => {
+            if !x.contains(&pin_id) {
+                return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
+            }
+        }
+        Err(_) => {
+            return Err(error::Error::Conflict);
+        }
     }
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -120,7 +159,9 @@ async fn main() {
 
     let pins = (args.start..args.end + 1).collect();
 
-    let shared_state = Arc::new(AppState { pin_list: pins });
+    let shared_state = Arc::new(AppState {
+        pin_list: Mutex::new(pins),
+    });
 
     // initialize tracing
     tracing_subscriber::registry()
@@ -139,10 +180,14 @@ async fn main() {
     let app = Router::new()
         // `GET /api/` goes to `api_root`
         .route("/api/", get(api_root))
-        // `GET /api/fire/ goes to `fire_list`
+        // `GET /api/fire/` goes to `fire_list`
         .route("/api/fire/", get(fire_list))
-        // `GET /api/fire/:pin goes to `fire_pin`
+        // `GET /api/fire/:pin` goes to `fire_pin`
         .route("/api/fire/:pin", get(fire_pin))
+        // `PUT /api/fire/:pin` enables the pin
+        .route("/api/fire/:pin", put(enable_pin))
+        // `DELETE /api/fire/:pin` disables the pin
+        .route("/api/fire/:pin", delete(disable_pin))
         .with_state(shared_state)
         .fallback_service(serve_dir);
 

@@ -8,6 +8,7 @@ use rppal::gpio::Error as RpError;
 use serde_json::json;
 
 pub(crate) enum Error {
+    Conflict,
     BadRequest(String),
     #[cfg(all(target_arch = "arm", target_os = "linux"))]
     RpError(RpError),
@@ -23,6 +24,7 @@ impl From<RpError> for Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
+            Error::Conflict => (StatusCode::CONFLICT, "unable to r/w pin list".into()),
             Error::BadRequest(e) => (StatusCode::BAD_REQUEST, e),
             #[cfg(all(target_arch = "arm", target_os = "linux"))]
             Error::RpError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
