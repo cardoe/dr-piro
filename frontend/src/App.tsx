@@ -6,8 +6,7 @@ import Button from 'react-bootstrap/Button';
 import Navbar from 'react-bootstrap/Navbar';
 import Alert from 'react-bootstrap/Alert';
 import './App.css';
-import { getPinRange, firePin, PinRange } from './api';
-import { NumberLiteralType } from 'typescript';
+import { getPinConfig, firePin, PinConfig } from './api';
 
 interface LaunchAlertProps {
   label: number;
@@ -93,18 +92,18 @@ function Header() {
 }
 
 function App() {
-  const [pinRange, setPinRange] = useState({ pins: new Array()});
+  const [pinConfig, setPinConfig] = useState({ pins: new Array()});
   useEffect(() => {
-    const fetchPinRange = async () => {
+    const fetchPinConfig = async () => {
       try {
-        const newPinRange = await getPinRange();
-        setPinRange(newPinRange);
+        const newPinConfig = await getPinConfig();
+        setPinConfig(newPinConfig);
       } catch (err) {
         console.log(err);
       }
     };
 
-    fetchPinRange();
+    fetchPinConfig();
   }, []);
 
   return (

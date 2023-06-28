@@ -1,11 +1,11 @@
-export interface PinRange {
+export interface PinConfig {
     pins: Array<number>;
 }
 
-export const getPinRange = async(): Promise<PinRange> => {
+export const getPinConfig = async(): Promise<PinConfig> => {
     const response = await fetch(`/api/fire/`);
     if (!response.ok) {
-        return Promise.reject(new Error("Failed to read pin range"));
+        return Promise.reject(new Error("Failed to read pin config"));
     }
     return await response.json();
 }
