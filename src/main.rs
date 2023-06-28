@@ -21,21 +21,29 @@ mod error;
 
 struct AppState {
     pin_list: Mutex<Vec<u8>>,
+    duration: u8,
 }
 
 #[derive(Serialize, Debug)]
-struct PinList {
+struct PinConfig {
     pins: Vec<u8>,
+    duration: u8,
 }
 
 async fn api_root() -> &'static str {
     "Hello API World"
 }
 
-async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinList> {
+async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinConfig> {
     match state.pin_list.lock() {
-        Ok(x) => Json(PinList { pins: x.clone() }),
-        Err(_) => Json(PinList { pins: vec![] }),
+        Ok(x) => Json(PinConfig {
+            pins: x.clone(),
+            duration: state.duration,
+        }),
+        Err(_) => Json(PinConfig {
+            pins: vec![],
+            duration: 0,
+        }),
     }
 }
 
@@ -84,7 +92,7 @@ async fn fire_pin(
     debug!(pin_id = pin_id, "Toggling pin");
 
     pin.set_high();
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(state.duration as u64)).await;
     pin.set_low();
     Ok(StatusCode::ACCEPTED)
 }
@@ -105,7 +113,7 @@ async fn fire_pin(
         }
     }
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(state.duration as u64)).await;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -151,6 +159,10 @@ struct Args {
     /// End Pin
     #[arg(short, long, default_value_t = 16)]
     end: u8,
+
+    /// How long to hold the pin when firing
+    #[arg(long, default_value_t = 5)]
+    duration: u8,
 }
 
 #[tokio::main]
@@ -161,6 +173,7 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         pin_list: Mutex::new(pins),
+        duration: args.duration,
     });
 
     // initialize tracing
