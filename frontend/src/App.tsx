@@ -55,7 +55,7 @@ function Launcher({ pin, label, duration }: LauncherProps) {
       <Col>Launcher {label}</Col>
       <Col><Button variant="danger" className="mr-2" value={pin} onClick={handleClick}>Fire</Button></Col>
       {clicked ? <LaunchAlert label={label} clear={setClicked} duration={duration} /> : null}
-      {error !== '' ? <Alert variant='warning'>Failed to launch</Alert> : null}
+      {error !== '' ? <Alert variant='warning'>Failed to launch: {error}</Alert> : null}
     </>
   );
 }
