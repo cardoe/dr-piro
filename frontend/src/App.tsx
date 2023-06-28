@@ -11,13 +11,14 @@ import { getPinConfig, firePin, PinConfig } from './api';
 interface LaunchAlertProps {
   label: number;
   clear: React.Dispatch<React.SetStateAction<boolean>>;
+  duration: number;
 }
 
-function LaunchAlert({ label, clear }: LaunchAlertProps) {
+function LaunchAlert({ label, clear, duration }: LaunchAlertProps) {
   useEffect(() => {
     const timeId = setTimeout(() => {
       clear(false);
-    }, 3000);
+    }, duration * 1000);
 
     return () => {
       clearTimeout(timeId);
@@ -32,9 +33,10 @@ function LaunchAlert({ label, clear }: LaunchAlertProps) {
 interface LauncherProps {
   pin: number;
   label: number;
+  duration: number;
 }
 
-function Launcher({ pin, label }: LauncherProps) {
+function Launcher({ pin, label, duration }: LauncherProps) {
   const [clicked, setClicked] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,19 +54,19 @@ function Launcher({ pin, label }: LauncherProps) {
     <>
       <Col>Launcher {label}</Col>
       <Col><Button variant="danger" className="mr-2" value={pin} onClick={handleClick}>Fire</Button></Col>
-      {clicked ? <LaunchAlert label={label} clear={setClicked}/> : null}
+      {clicked ? <LaunchAlert label={label} clear={setClicked} duration={duration} /> : null}
       {error !== '' ? <Alert variant='warning'>Failed to launch</Alert> : null}
     </>
   );
 }
 
-function LauncherList({ pins }: PinRange) {
+function LauncherList({ pins, duration }: PinConfig) {
   return (
     <Container fluid="sm" className="container-md">
     {
       pins.map((pin, label) =>
         <Row key={label} className="justify-content-md-center mb-2">
-          <Launcher pin={pin} label={label + 1} />
+          <Launcher pin={pin} label={label + 1} duration={duration} />
           </Row>
       )
     }
@@ -92,7 +94,7 @@ function Header() {
 }
 
 function App() {
-  const [pinConfig, setPinConfig] = useState({ pins: new Array()});
+  const [pinConfig, setPinConfig] = useState({ pins: new Array(), duration: 0});
   useEffect(() => {
     const fetchPinConfig = async () => {
       try {
@@ -110,7 +112,7 @@ function App() {
     <div className="App">
       <Header />
       <main className="my-5 py-3">
-        <LauncherList pins={pinRange.pins} />
+        <LauncherList pins={pinConfig.pins} duration={pinConfig.duration} />
       </main>
     </div>
   );

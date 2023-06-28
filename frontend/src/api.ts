@@ -1,5 +1,6 @@
 export interface PinConfig {
     pins: Array<number>;
+    duration: number;
 }
 
 export const getPinConfig = async(): Promise<PinConfig> => {
