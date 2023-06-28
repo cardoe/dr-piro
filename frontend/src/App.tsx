@@ -23,7 +23,7 @@ function LaunchAlert({ label, clear, duration }: LaunchAlertProps) {
     return () => {
       clearTimeout(timeId);
     }
-  }, []);  
+  }, [duration, clear]);
 
   return (
     <Alert variant='secondary'>Launching {label}</Alert>
