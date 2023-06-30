@@ -122,7 +122,6 @@ function Launcher({ pin, label, duration }: LauncherProps) {
   const [error, setError] = useState('');
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    const button: HTMLButtonElement = event.currentTarget;
     setClicked(true);
     try {
       await firePin(pin);
