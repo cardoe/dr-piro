@@ -10,9 +10,24 @@ export const getPinConfig = async(): Promise<PinConfig> => {
     }
     return await response.json();
 }
+
 export const firePin = async(pos: number): Promise<void> => {
     const response = await fetch(`/api/fire/${pos}`);
     if (!response.ok) {
-        return Promise.reject(new Error(`Failed to fire {pos}`));
+        return Promise.reject(new Error(`Failed to fire ${pos}`));
+    }
+}
+
+export const enablePin = async(pin: number): Promise<void> => {
+    const response = await fetch(`/api/fire/${pin}`, {method: "PUT"});
+    if (!response.ok) {
+        return Promise.reject(new Error(`Failed to enable pin ${pin}`));
+    }
+}
+
+export const disablePin = async(pin: number): Promise<void> => {
+    const response = await fetch(`/api/fire/${pin}`, {method: "DELETE"});
+    if (!response.ok) {
+        return Promise.reject(new Error(`Failed to disable pin ${pin}`));
     }
 }

@@ -1,12 +1,79 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Container from 'react-bootstrap/Container';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
-import Button from 'react-bootstrap/Button';
-import Navbar from 'react-bootstrap/Navbar';
 import Alert from 'react-bootstrap/Alert';
+import Button from 'react-bootstrap/Button';
+import Form from 'react-bootstrap/Form';
+import InputGroup from 'react-bootstrap/InputGroup';
+import Modal from 'react-bootstrap/Modal';
+import Nav from 'react-bootstrap/Nav';
+import Navbar from 'react-bootstrap/Navbar';
 import './App.css';
-import { getPinConfig, firePin, PinConfig } from './api';
+import { disablePin, enablePin, getPinConfig, firePin, PinConfig } from './api';
+
+interface ConfigModalProps {
+  handleClose: () => void;
+  show: boolean;
+}
+
+function ConfigModal({ handleClose, show }: ConfigModalProps) {
+  const duration = useRef<HTMLInputElement>(null);
+  const pin = useRef<HTMLInputElement>(null);
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const btn = event.currentTarget;
+
+    console.log(btn.value);
+    console.log(pin?.current?.value);
+
+    if (btn.value === "Duration" && duration?.current?.value !== undefined) {
+      // something
+    } else if (btn.value === "Enable" && pin?.current?.value !== undefined) {
+      const val = Number(pin.current.value);
+      enablePin(val);
+    } else if (btn.value === "Disable" && pin?.current?.value !== undefined) {
+      const val = Number(pin.current.value);
+      disablePin(val);
+    }
+  };
+
+  return (
+    <>
+      <Modal show={show} onHide={handleClose}>
+        <Modal.Header closeButton>
+          <Modal.Title>Configs</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <Form>
+            <Row className="mb-3 align-items-center">
+              <InputGroup as={Col}>
+                <InputGroup.Text>Duration</InputGroup.Text>
+                <Form.Control type="number" ref={duration} name="duration" />
+              </InputGroup>
+              <Col>
+                <Button type="button" onClick={handleClick} value="Duration">Save</Button>
+              </Col>
+            </Row>
+            <Row className="mb-3 align-items-center">
+              <InputGroup as={Col} sm={3}>
+                <InputGroup.Text>Pin</InputGroup.Text>
+                <Form.Control type="number" ref={pin} name="pin" />
+              </InputGroup>
+              <Col sm={2}>
+                <Button type="button" onClick={handleClick} value="Enable">Enable</Button>
+              </Col>
+              <Col sm={2}>
+                <Button type="button" onClick={handleClick} value="Disable">Disable</Button>
+              </Col>
+            </Row>
+            </Form>
+        </Modal.Body>
+      </Modal>
+    </>
+  );
+}
 
 interface LaunchAlertProps {
   label: number;
@@ -67,14 +134,21 @@ function LauncherList({ pins, duration }: PinConfig) {
       pins.map((pin, label) =>
         <Row key={label} className="justify-content-md-center mb-2">
           <Launcher pin={pin} label={label + 1} duration={duration} />
-          </Row>
+        </Row>
       )
     }
     </Container>
   );
 }
 
-function Header() {
+interface HeaderProps {
+  showConfig: boolean;
+  setShowConfig: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+function Header({ showConfig, setShowConfig }: HeaderProps) {
+  const toggleConfig = async (event: React.MouseEvent<HTMLButtonElement>) => setShowConfig(!showConfig);
+
   return (
     <Navbar fixed="top" bg="dark" variant="dark" expand="sm">
       <Container>
@@ -88,6 +162,9 @@ function Header() {
             />{' '}
             DR Piro
           </Navbar.Brand>
+          <Nav className="justify-content-end">
+            <Nav.Link onClick={toggleConfig}>Gear</Nav.Link>
+          </Nav>
       </Container>
     </Navbar>
   )
@@ -95,22 +172,29 @@ function Header() {
 
 function App() {
   const [pinConfig, setPinConfig] = useState({ pins: new Array(), duration: 0});
-  useEffect(() => {
-    const fetchPinConfig = async () => {
-      try {
-        const newPinConfig = await getPinConfig();
-        setPinConfig(newPinConfig);
-      } catch (err) {
-        console.log(err);
-      }
-    };
+  const [showConfig, setShowConfig] = useState(false);
+  const fetchPinConfig = async () => {
+    try {
+      const newPinConfig = await getPinConfig();
+      setPinConfig(newPinConfig);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
+  const closeSettings = () => {
+    setShowConfig(false)
+    fetchPinConfig();
+  }
+
+  useEffect(() => {
     fetchPinConfig();
   }, []);
 
   return (
     <div className="App">
-      <Header />
+      <Header showConfig={showConfig} setShowConfig={setShowConfig} />
+      <ConfigModal show={showConfig} handleClose={closeSettings} />
       <main className="my-5 py-3">
         <LauncherList pins={pinConfig.pins} duration={pinConfig.duration} />
       </main>
