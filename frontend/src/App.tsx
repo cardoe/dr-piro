@@ -13,35 +13,45 @@ import './App.css';
 import { disablePin, enablePin, getPinConfig, firePin, PinConfig } from './api';
 
 interface ConfigModalProps {
-  handleClose: () => void;
-  show: boolean;
+  config: PinConfig;
+  showConfig: boolean;
+  setShowConfig: (show: boolean) => void;
+  fetchPinConfig: () => void;
 }
 
-function ConfigModal({ handleClose, show }: ConfigModalProps) {
+function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: ConfigModalProps) {
   const duration = useRef<HTMLInputElement>(null);
   const pin = useRef<HTMLInputElement>(null);
+
+  const disablePinClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const btn = event.currentTarget;
+    disablePin(Number(btn.value));
+    fetchPinConfig();
+  }
+
+  const handleClose = async () => {
+    setShowConfig(false);
+    await fetchPinConfig();
+  }
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const btn = event.currentTarget;
 
-    console.log(btn.value);
-    console.log(pin?.current?.value);
-
     if (btn.value === "Duration" && duration?.current?.value !== undefined) {
       // something
+      fetchPinConfig();
     } else if (btn.value === "Enable" && pin?.current?.value !== undefined) {
       const val = Number(pin.current.value);
       enablePin(val);
-    } else if (btn.value === "Disable" && pin?.current?.value !== undefined) {
-      const val = Number(pin.current.value);
-      disablePin(val);
+      fetchPinConfig();
     }
   };
 
   return (
     <>
-      <Modal show={show} onHide={handleClose}>
+      <Modal show={showConfig} onHide={handleClose}>
         <Modal.Header closeButton>
           <Modal.Title>Configs</Modal.Title>
         </Modal.Header>
@@ -50,24 +60,28 @@ function ConfigModal({ handleClose, show }: ConfigModalProps) {
             <Row className="mb-3 align-items-center">
               <InputGroup as={Col}>
                 <InputGroup.Text>Duration</InputGroup.Text>
-                <Form.Control type="number" ref={duration} name="duration" />
+                <Form.Control type="number" ref={duration} name="duration" value={config.duration} />
               </InputGroup>
               <Col>
                 <Button type="button" onClick={handleClick} value="Duration">Save</Button>
               </Col>
             </Row>
             <Row className="mb-3 align-items-center">
-              <InputGroup as={Col} sm={3}>
+              <InputGroup as={Col}>
                 <InputGroup.Text>Pin</InputGroup.Text>
                 <Form.Control type="number" ref={pin} name="pin" />
               </InputGroup>
-              <Col sm={2}>
+              <Col>
                 <Button type="button" onClick={handleClick} value="Enable">Enable</Button>
               </Col>
-              <Col sm={2}>
-                <Button type="button" onClick={handleClick} value="Disable">Disable</Button>
-              </Col>
             </Row>
+            {
+              config.pins.map((pin, label) =>
+                <Row key={label} className="mb-3">
+                  <Button type="button" id="btn{pin}" onClick={disablePinClick} value={pin}>Disable Launch {label} / Pin {pin}</Button>
+                </Row>
+              )
+            }
             </Form>
         </Modal.Body>
       </Modal>
@@ -182,11 +196,6 @@ function App() {
     }
   };
 
-  const closeSettings = () => {
-    setShowConfig(false)
-    fetchPinConfig();
-  }
-
   useEffect(() => {
     fetchPinConfig();
   }, []);
@@ -194,7 +203,7 @@ function App() {
   return (
     <div className="App">
       <Header showConfig={showConfig} setShowConfig={setShowConfig} />
-      <ConfigModal show={showConfig} handleClose={closeSettings} />
+      <ConfigModal config={pinConfig} showConfig={showConfig} setShowConfig={setShowConfig} fetchPinConfig={fetchPinConfig} />
       <main className="my-5 py-3">
         <LauncherList pins={pinConfig.pins} duration={pinConfig.duration} />
       </main>
