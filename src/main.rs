@@ -2,15 +2,18 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::{delete, get, put},
+    routing::{delete, get, patch, put},
     Router,
 };
 use clap::{value_parser, Parser};
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc, Mutex,
+};
 use std::time::Duration;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -21,13 +24,18 @@ mod error;
 
 struct AppState {
     pin_list: Mutex<Vec<u8>>,
-    duration: u8,
+    duration: AtomicU8,
 }
 
 #[derive(Serialize, Debug)]
 struct PinConfig {
     pins: Vec<u8>,
     duration: u8,
+}
+
+#[derive(Deserialize, Debug)]
+struct PinConfigPatch {
+    duration: Option<u8>,
 }
 
 async fn api_root() -> &'static str {
@@ -38,12 +46,30 @@ async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinConfig> {
     match state.pin_list.lock() {
         Ok(x) => Json(PinConfig {
             pins: x.clone(),
-            duration: state.duration,
+            duration: state.duration.load(Ordering::SeqCst),
         }),
         Err(_) => Json(PinConfig {
             pins: vec![],
             duration: 0,
         }),
+    }
+}
+
+async fn fire_config(
+    State(state): State<Arc<AppState>>,
+    Json(config): Json<PinConfigPatch>,
+) -> Result<Json<PinConfig>, StatusCode> {
+    match state.pin_list.lock() {
+        Ok(x) => {
+            if let Some(dur) = config.duration {
+                state.duration.store(dur, Ordering::SeqCst);
+            }
+            Ok(Json(PinConfig {
+                pins: x.clone(),
+                duration: state.duration.load(Ordering::SeqCst),
+            }))
+        }
+        Err(_) => Err(StatusCode::CONFLICT),
     }
 }
 
@@ -92,7 +118,10 @@ async fn fire_pin(
     debug!(pin_id = pin_id, "Toggling pin");
 
     pin.set_high();
-    tokio::time::sleep(Duration::from_secs(state.duration as u64)).await;
+    tokio::time::sleep(Duration::from_secs(
+        state.duration.load(Ordering::SeqCst) as u64
+    ))
+    .await;
     pin.set_low();
     Ok(StatusCode::ACCEPTED)
 }
@@ -113,7 +142,10 @@ async fn fire_pin(
         }
     }
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
-    tokio::time::sleep(Duration::from_secs(state.duration as u64)).await;
+    tokio::time::sleep(Duration::from_secs(
+        state.duration.load(Ordering::SeqCst) as u64
+    ))
+    .await;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -173,7 +205,7 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         pin_list: Mutex::new(pins),
-        duration: args.duration,
+        duration: AtomicU8::new(args.duration),
     });
 
     // initialize tracing
@@ -195,6 +227,8 @@ async fn main() {
         .route("/api/", get(api_root))
         // `GET /api/fire/` goes to `fire_list`
         .route("/api/fire/", get(fire_list))
+        // `PATCH /api/fire/` goes to `fire_config`
+        .route("/api/fire/", patch(fire_config))
         // `GET /api/fire/:pin` goes to `fire_pin`
         .route("/api/fire/:pin", get(fire_pin))
         // `PUT /api/fire/:pin` enables the pin

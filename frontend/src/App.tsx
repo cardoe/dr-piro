@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import './App.css';
-import { disablePin, enablePin, getPinConfig, firePin, PinConfig } from './api';
+import { disablePin, enablePin, getPinConfig, firePin, setDuration, PinConfig } from './api';
 
 interface ConfigModalProps {
   config: PinConfig;
@@ -40,7 +40,8 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
     const btn = event.currentTarget;
 
     if (btn.value === "Duration" && duration?.current?.value !== undefined) {
-      // something
+      const val = Number(duration.current.value);
+      setDuration(val);
       fetchPinConfig();
     } else if (btn.value === "Enable" && pin?.current?.value !== undefined) {
       const val = Number(pin.current.value);
@@ -60,7 +61,7 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
             <Row className="mb-3 align-items-center">
               <InputGroup as={Col}>
                 <InputGroup.Text>Duration</InputGroup.Text>
-                <Form.Control type="number" ref={duration} name="duration" value={config.duration} />
+                <Form.Control type="number" ref={duration} name="duration" placeholder={String(config.duration)} />
               </InputGroup>
               <Col>
                 <Button type="button" onClick={handleClick} value="Duration">Save</Button>
@@ -78,7 +79,7 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
             {
               config.pins.map((pin, label) =>
                 <Row key={label} className="mb-3">
-                  <Button type="button" id="btn{pin}" onClick={disablePinClick} value={pin}>Disable Launch {label} / Pin {pin}</Button>
+                  <Button type="button" onClick={disablePinClick} value={pin}>Disable Launch {label} / Pin {pin}</Button>
                 </Row>
               )
             }

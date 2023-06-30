@@ -11,6 +11,21 @@ export const getPinConfig = async(): Promise<PinConfig> => {
     return await response.json();
 }
 
+export const setDuration = async(duration: number): Promise<PinConfig> => {
+    const response = await fetch(`/api/fire/`, {
+        method: "PATCH",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({duration: duration}),
+    });
+    if (!response.ok) {
+        return Promise.reject(new Error("Failed to edit duration"));
+    }
+    return await response.json();
+}
+
 export const firePin = async(pos: number): Promise<void> => {
     const response = await fetch(`/api/fire/${pos}`);
     if (!response.ok) {
