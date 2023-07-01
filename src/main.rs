@@ -10,11 +10,14 @@ use clap::{value_parser, Parser};
 use rppal::gpio::Gpio;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::path::{self, PathBuf};
 use std::sync::{
     atomic::{AtomicU8, Ordering},
     Arc, Mutex,
 };
 use std::time::Duration;
+use tokio::fs::{File, OpenOptions};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing::debug;
@@ -25,12 +28,34 @@ mod error;
 struct AppState {
     pin_list: Mutex<Vec<u8>>,
     duration: AtomicU8,
+    config: PathBuf,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 struct PinConfig {
     pins: Vec<u8>,
     duration: u8,
+}
+
+impl PinConfig {
+    async fn save<P: AsRef<path::Path>>(&self, path: P) -> Result<(), error::Error> {
+        // convert the config to a JSON byte stream
+        let buf = serde_json::to_vec_pretty(self).map_err(error::Error::Json)?;
+
+        // save the JSON byte stream to our config file
+        async {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&path)
+                .await?;
+
+            file.write_all(&buf).await
+        }
+        .await
+        .map_err(error::Error::Io)
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -58,19 +83,26 @@ async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinConfig> {
 async fn fire_config(
     State(state): State<Arc<AppState>>,
     Json(config): Json<PinConfigPatch>,
-) -> Result<Json<PinConfig>, StatusCode> {
-    match state.pin_list.lock() {
-        Ok(x) => {
-            if let Some(dur) = config.duration {
-                state.duration.store(dur, Ordering::SeqCst);
-            }
-            Ok(Json(PinConfig {
-                pins: x.clone(),
-                duration: state.duration.load(Ordering::SeqCst),
-            }))
-        }
-        Err(_) => Err(StatusCode::CONFLICT),
+) -> Result<Json<PinConfig>, error::Error> {
+    let pins = if let Ok(pins) = state.pin_list.lock() {
+        Ok(pins.clone())
+    } else {
+        Err(error::Error::Conflict)
+    }?;
+
+    if let Some(dur) = config.duration {
+        state.duration.store(dur, Ordering::SeqCst);
+        debug!(duration = dur, "Storing new duration");
     }
+    let new_state = PinConfig {
+        pins,
+        duration: state.duration.load(Ordering::SeqCst),
+    };
+
+    // save the changes
+    new_state.save(&state.config).await?;
+
+    Ok(Json(new_state))
 }
 
 async fn enable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>) -> StatusCode {
@@ -184,28 +216,56 @@ struct Args {
     #[arg(short, long, default_value = "0.0.0.0:8000", value_parser = value_parser!(SocketAddr))]
     listen: SocketAddr,
 
+    /// Location of config data
+    #[arg(long)]
+    config: Option<PathBuf>,
+
     /// Start Pin
-    #[arg(short, long, default_value_t = 1)]
-    start: u8,
+    #[arg(long)]
+    start: Option<u8>,
 
     /// End Pin
-    #[arg(short, long, default_value_t = 16)]
-    end: u8,
+    #[arg(long)]
+    end: Option<u8>,
 
     /// How long to hold the pin when firing
-    #[arg(long, default_value_t = 5)]
-    duration: u8,
+    #[arg(long)]
+    duration: Option<u8>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn ::std::error::Error>> {
     let args = Args::parse();
 
-    let pins = (args.start..args.end + 1).collect();
+    // load existing state from our config file
+    let cfg_path = if let Some(cfg) = args.config {
+        cfg
+    } else {
+        dirs::config_dir()
+            .ok_or_else(|| "Unable to determine users config dir".to_string())?
+            .join(env!("CARGO_PKG_NAME"))
+            .join(env!("CARGO_BIN_NAME"))
+    };
+    let mut cfg_file = File::open(&cfg_path).await?;
+    let mut cfg_contents = vec![];
+    cfg_file.read_to_end(&mut cfg_contents).await?;
+    let mut state: PinConfig = serde_json::from_slice(&cfg_contents)?;
+
+    // let the command line over ride the config
+    if let Some(start) = args.start {
+        if let Some(end) = args.end {
+            state.pins = (start..end).collect();
+        }
+    }
+
+    if let Some(duration) = args.duration {
+        state.duration = duration;
+    }
 
     let shared_state = Arc::new(AppState {
-        pin_list: Mutex::new(pins),
-        duration: AtomicU8::new(args.duration),
+        pin_list: Mutex::new(state.pins),
+        duration: AtomicU8::new(state.duration),
+        config: cfg_path,
     });
 
     // initialize tracing
@@ -246,4 +306,6 @@ async fn main() {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
+
+    Ok(())
 }

@@ -10,6 +10,8 @@ use serde_json::json;
 pub(crate) enum Error {
     Conflict,
     BadRequest(String),
+    Io(::tokio::io::Error),
+    Json(::serde_json::Error),
     #[cfg(all(target_arch = "arm", target_os = "linux"))]
     RpError(RpError),
 }
@@ -26,6 +28,8 @@ impl IntoResponse for Error {
         let (status, error_message) = match self {
             Error::Conflict => (StatusCode::CONFLICT, "unable to r/w pin list".into()),
             Error::BadRequest(e) => (StatusCode::BAD_REQUEST, e),
+            Error::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            Error::Json(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             #[cfg(all(target_arch = "arm", target_os = "linux"))]
             Error::RpError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
         };
