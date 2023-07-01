@@ -164,7 +164,7 @@ function Header({ showConfig, setShowConfig }: HeaderProps) {
   const toggleConfig = async (event: React.MouseEvent<HTMLButtonElement>) => setShowConfig(!showConfig);
 
   return (
-    <Navbar fixed="top" bg="dark" variant="dark" expand="sm">
+    <Navbar fixed="top" expand="sm" bg="primary">
       <Container>
         <Navbar.Brand href="#home">
           <img
