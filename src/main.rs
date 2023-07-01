@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::{delete, get, patch, put},
+    routing::get,
     Router,
 };
 use clap::{value_parser, Parser};
@@ -226,15 +226,15 @@ async fn main() {
         // `GET /api/` goes to `api_root`
         .route("/api/", get(api_root))
         // `GET /api/fire/` goes to `fire_list`
-        .route("/api/fire/", get(fire_list))
         // `PATCH /api/fire/` goes to `fire_config`
-        .route("/api/fire/", patch(fire_config))
+        .route("/api/fire/", get(fire_list).patch(fire_config))
         // `GET /api/fire/:pin` goes to `fire_pin`
-        .route("/api/fire/:pin", get(fire_pin))
         // `PUT /api/fire/:pin` enables the pin
-        .route("/api/fire/:pin", put(enable_pin))
         // `DELETE /api/fire/:pin` disables the pin
-        .route("/api/fire/:pin", delete(disable_pin))
+        .route(
+            "/api/fire/:pin",
+            get(fire_pin).put(enable_pin).delete(disable_pin),
+        )
         .with_state(shared_state)
         .fallback_service(serve_dir);
 
