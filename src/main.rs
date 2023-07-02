@@ -31,6 +31,21 @@ struct AppState {
     config: PathBuf,
 }
 
+impl AppState {
+    fn to_pin_config(&self) -> Result<PinConfig, error::Error> {
+        let pins = if let Ok(pins) = self.pin_list.lock() {
+            Ok(pins.clone())
+        } else {
+            Err(error::Error::Conflict)
+        }?;
+
+        Ok(PinConfig {
+            pins,
+            duration: self.duration.load(Ordering::SeqCst),
+        })
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 struct PinConfig {
     pins: Vec<u8>,
@@ -67,38 +82,21 @@ async fn api_root() -> &'static str {
     "Hello API World"
 }
 
-async fn fire_list(State(state): State<Arc<AppState>>) -> Json<PinConfig> {
-    match state.pin_list.lock() {
-        Ok(x) => Json(PinConfig {
-            pins: x.clone(),
-            duration: state.duration.load(Ordering::SeqCst),
-        }),
-        Err(_) => Json(PinConfig {
-            pins: vec![],
-            duration: 0,
-        }),
-    }
+async fn fire_list(State(state): State<Arc<AppState>>) -> Result<Json<PinConfig>, error::Error> {
+    state.to_pin_config().map(Json)
 }
 
 async fn fire_config(
     State(state): State<Arc<AppState>>,
     Json(config): Json<PinConfigPatch>,
 ) -> Result<Json<PinConfig>, error::Error> {
-    let pins = if let Ok(pins) = state.pin_list.lock() {
-        Ok(pins.clone())
-    } else {
-        Err(error::Error::Conflict)
-    }?;
-
     if let Some(dur) = config.duration {
         state.duration.store(dur, Ordering::SeqCst);
         debug!(duration = dur, "Storing new duration");
     }
-    let new_state = PinConfig {
-        pins,
-        duration: state.duration.load(Ordering::SeqCst),
-    };
 
+    // get our new state to return
+    let new_state = state.to_pin_config()?;
     // save the changes
     new_state.save(&state.config).await?;
 
