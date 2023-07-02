@@ -9,13 +9,13 @@ use clap::{value_parser, Parser};
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Gpio;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
 use std::path::{self, PathBuf};
 use std::sync::{
     atomic::{AtomicU8, Ordering},
     Arc, Mutex,
 };
 use std::time::Duration;
+use std::{io::ErrorKind, net::SocketAddr};
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower_http::services::{ServeDir, ServeFile};
@@ -46,7 +46,7 @@ impl AppState {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Default, Deserialize, Serialize, Debug)]
 struct PinConfig {
     pins: Vec<u8>,
     duration: u8,
@@ -54,10 +54,25 @@ struct PinConfig {
 
 impl PinConfig {
     async fn load<P: AsRef<path::Path>>(path: P) -> Result<PinConfig, error::Error> {
-        let mut cfg_file = File::open(&path).await.map_err(error::Error::Io)?;
-        let mut cfg_contents = vec![];
-        cfg_file.read_to_end(&mut cfg_contents).await.map_err(error::Error::Io)?;
-        serde_json::from_slice(&cfg_contents).map_err(error::Error::Json)
+        if let Some(parent) = path.as_ref().parent() {
+            ::tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(error::Error::Io)?;
+        }
+        match File::open(&path).await {
+            Ok(mut cfg_file) => {
+                let mut cfg_contents = vec![];
+                cfg_file
+                    .read_to_end(&mut cfg_contents)
+                    .await
+                    .map_err(error::Error::Io)?;
+                serde_json::from_slice(&cfg_contents).map_err(error::Error::Json)
+            }
+            Err(e) => match e.kind() {
+                ErrorKind::NotFound => Ok(PinConfig::default()),
+                _ => Err(error::Error::Io(e)),
+            },
+        }
     }
 
     async fn save<P: AsRef<path::Path>>(&self, path: P) -> Result<(), error::Error> {
