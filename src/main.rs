@@ -53,6 +53,13 @@ struct PinConfig {
 }
 
 impl PinConfig {
+    async fn load<P: AsRef<path::Path>>(path: P) -> Result<PinConfig, error::Error> {
+        let mut cfg_file = File::open(&path).await.map_err(error::Error::Io)?;
+        let mut cfg_contents = vec![];
+        cfg_file.read_to_end(&mut cfg_contents).await.map_err(error::Error::Io)?;
+        serde_json::from_slice(&cfg_contents).map_err(error::Error::Json)
+    }
+
     async fn save<P: AsRef<path::Path>>(&self, path: P) -> Result<(), error::Error> {
         // convert the config to a JSON byte stream
         let buf = serde_json::to_vec_pretty(self).map_err(error::Error::Json)?;
@@ -244,10 +251,9 @@ async fn main() -> Result<(), Box<dyn ::std::error::Error>> {
             .join(env!("CARGO_PKG_NAME"))
             .join(env!("CARGO_BIN_NAME"))
     };
-    let mut cfg_file = File::open(&cfg_path).await?;
-    let mut cfg_contents = vec![];
-    cfg_file.read_to_end(&mut cfg_contents).await?;
-    let mut state: PinConfig = serde_json::from_slice(&cfg_contents)?;
+
+    // load our config
+    let mut state = PinConfig::load(&cfg_path).await?;
 
     // let the command line over ride the config
     if let Some(start) = args.start {
