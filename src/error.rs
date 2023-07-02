@@ -6,7 +6,9 @@ use axum::{
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
 use rppal::gpio::Error as RpError;
 use serde_json::json;
+use std::fmt;
 
+#[derive(Debug)]
 pub(crate) enum Error {
     Conflict,
     BadRequest(String),
@@ -23,15 +25,49 @@ impl From<RpError> for Error {
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use ::std::error::Error as StdError;
+        if let Some(e) = self.source() {
+            write!(f, "{}: ", e)?;
+        }
+        writeln!(
+            f,
+            "{}",
+            match self {
+                Error::Conflict => "unable to access pin list".into(),
+                Error::BadRequest(e) => e.to_owned(),
+                Error::Io(_) => "file issue".into(),
+                Error::Json(_) => "JSON parse".into(),
+                #[cfg(all(target_arch = "arm", target_os = "linux"))]
+                Error::RpError(_) => "Raspberry Pi".into(),
+            }
+        )
+    }
+}
+
+impl ::std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Conflict => None,
+            Error::BadRequest(_) => None,
+            Error::Io(e) => Some(e),
+            Error::Json(e) => Some(e),
+            #[cfg(all(target_arch = "arm", target_os = "linux"))]
+            Error::RpError(e) => Some(e),
+        }
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            Error::Conflict => (StatusCode::CONFLICT, "unable to r/w pin list".into()),
-            Error::BadRequest(e) => (StatusCode::BAD_REQUEST, e),
-            Error::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            Error::Json(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            Error::Conflict => (StatusCode::CONFLICT, self.to_string()),
+            Error::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            Error::Io(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            Error::Json(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             #[cfg(all(target_arch = "arm", target_os = "linux"))]
-            Error::RpError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            Error::RpError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
         let body = Json(json!({
