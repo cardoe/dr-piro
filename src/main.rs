@@ -42,9 +42,7 @@ impl AppState {
                     Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)))
                 }
             }
-            Err(_) => {
-                Err(error::Error::Conflict)
-            }
+            Err(_) => Err(error::Error::Conflict),
         }
     }
 
@@ -141,14 +139,24 @@ async fn fire_config(
     Ok(Json(new_state))
 }
 
-async fn enable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>) -> StatusCode {
+async fn enable_pin(
+    Path(pin_id): Path<u8>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<PinConfig>, error::Error> {
     match state.pin_list.lock() {
         Ok(mut x) => {
-            x.push(pin_id);
-            StatusCode::ACCEPTED
+            if x.contains(&pin_id) {
+                Err(error::Error::BadRequest("pin is already enabled".into()))
+            } else {
+                is_valid_pin(pin_id)?;
+                x.push(pin_id);
+                Ok(())
+            }
         }
-        Err(_) => StatusCode::CONFLICT,
-    }
+        Err(_) => Err(error::Error::Conflict),
+    }?;
+
+    Ok(Json(state.to_pin_config()?))
 }
 
 async fn disable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>) -> StatusCode {
@@ -162,6 +170,13 @@ async fn disable_pin(Path(pin_id): Path<u8>, State(state): State<Arc<AppState>>)
         },
         Err(_) => StatusCode::CONFLICT,
     }
+}
+
+#[cfg(all(target_arch = "arm", target_os = "linux"))]
+fn is_valid_pin(pin_id: u8) -> Result<(), error::Error> {
+    debug!(pin_id = pin_id, "Checking if pin is GPIO");
+    let gpio = Gpio::new()?;
+    gpio.get(pin_id).map(|_| ()).map_err(|e| e.into())
 }
 
 #[cfg(all(target_arch = "arm", target_os = "linux"))]
@@ -182,6 +197,12 @@ async fn fire_pin(
     .await;
     pin.set_low();
     Ok(StatusCode::ACCEPTED)
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "linux")))]
+fn is_valid_pin(pin_id: u8) -> Result<(), error::Error> {
+    debug!(pin_id = pin_id, "Checking if pin is GPIO");
+    Ok(())
 }
 
 #[cfg(not(all(target_arch = "arm", target_os = "linux")))]
