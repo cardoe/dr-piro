@@ -20,7 +20,7 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod error;
@@ -43,20 +43,31 @@ impl AppState {
                     Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)))
                 }
             }
-            Err(_) => Err(error::Error::Conflict),
+            Err(_) => {
+                warn!(pin_id = pin_id, "unable to get pin mutex");
+                Err(error::Error::Conflict)
+            }
         }
     }
     fn trigger_pin(&self, pin_id: u8) -> Result<(), error::Error> {
         match self.triggered.lock() {
             Ok(mut x) => {
                 if x.contains(&pin_id) {
-                    Err(error::Error::BadRequest("pin is already triggered".into()))
+                    debug!(pin_id = pin_id, "pin is already triggered");
+                    Err(error::Error::BadRequest(format!(
+                        "pin {} is already triggered",
+                        pin_id
+                    )))
                 } else {
+                    debug!(pin_id = pin_id, "triggered pin");
                     x.push(pin_id);
                     Ok(())
                 }
             }
-            Err(_) => Err(error::Error::Conflict),
+            Err(_) => {
+                warn!(pin_id = pin_id, "unable to get pin mutex");
+                Err(error::Error::Conflict)
+            }
         }
     }
 
@@ -171,6 +182,7 @@ async fn enable_pin(
     match state.pin_list.lock() {
         Ok(mut x) => {
             if x.contains(&pin_id) {
+                debug!(pin_id = pin_id, "pin already enabled");
                 Err(error::Error::BadRequest(format!(
                     "pin {} is already enabled",
                     pin_id
@@ -181,7 +193,10 @@ async fn enable_pin(
                 Ok(())
             }
         }
-        Err(_) => Err(error::Error::Conflict),
+        Err(_) => {
+            warn!(pin_id = pin_id, "unable to get pin mutex");
+            Err(error::Error::Conflict)
+        }
     }?;
 
     let new_cfg = state.to_pin_config()?;
