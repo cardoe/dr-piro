@@ -12,6 +12,7 @@ use std::fmt;
 pub(crate) enum Error {
     Conflict,
     BadRequest(String),
+    NotFound(String),
     Io(::tokio::io::Error),
     Json(::serde_json::Error),
     #[cfg(all(target_arch = "arm", target_os = "linux"))]
@@ -37,6 +38,7 @@ impl fmt::Display for Error {
             match self {
                 Error::Conflict => "unable to access pin list".into(),
                 Error::BadRequest(e) => e.to_owned(),
+                Error::NotFound(e) => e.to_owned(),
                 Error::Io(_) => "file issue".into(),
                 Error::Json(_) => "JSON parse".into(),
                 #[cfg(all(target_arch = "arm", target_os = "linux"))]
@@ -51,6 +53,7 @@ impl ::std::error::Error for Error {
         match self {
             Error::Conflict => None,
             Error::BadRequest(_) => None,
+            Error::NotFound(_) => None,
             Error::Io(e) => Some(e),
             Error::Json(e) => Some(e),
             #[cfg(all(target_arch = "arm", target_os = "linux"))]
@@ -64,6 +67,7 @@ impl IntoResponse for Error {
         let (status, error_message) = match self {
             Error::Conflict => (StatusCode::CONFLICT, self.to_string()),
             Error::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            Error::NotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             Error::Io(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             Error::Json(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             #[cfg(all(target_arch = "arm", target_os = "linux"))]
