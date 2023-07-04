@@ -32,6 +32,22 @@ struct AppState {
 }
 
 impl AppState {
+    fn check_pin(&self, pin_id: u8) -> Result<(), error::Error> {
+        debug!(pin_id = pin_id, "Checking if pin is configured");
+        match self.pin_list.lock() {
+            Ok(x) => {
+                if x.contains(&pin_id) {
+                    Ok(())
+                } else {
+                    Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)))
+                }
+            }
+            Err(_) => {
+                Err(error::Error::Conflict)
+            }
+        }
+    }
+
     fn to_pin_config(&self) -> Result<PinConfig, error::Error> {
         let pins = if let Ok(pins) = self.pin_list.lock() {
             Ok(pins.clone())
@@ -153,17 +169,7 @@ async fn fire_pin(
     Path(pin_id): Path<u8>,
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, error::Error> {
-    match state.pin_list.lock() {
-        Ok(x) => {
-            if !x.contains(&pin_id) {
-                return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
-            }
-        }
-        Err(_) => {
-            return Err(error::Error::Conflict);
-        }
-    }
-
+    state.check_pin(pin_id)?;
     let gpio = Gpio::new()?;
     let mut pin = gpio.get(pin_id)?.into_output();
 
@@ -183,16 +189,7 @@ async fn fire_pin(
     Path(pin_id): Path<u8>,
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, error::Error> {
-    match state.pin_list.lock() {
-        Ok(x) => {
-            if !x.contains(&pin_id) {
-                return Err(error::Error::BadRequest(format!("invalid pin {}", pin_id,)));
-            }
-        }
-        Err(_) => {
-            return Err(error::Error::Conflict);
-        }
-    }
+    state.check_pin(pin_id)?;
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
     tokio::time::sleep(Duration::from_secs(
         state.duration.load(Ordering::SeqCst) as u64
