@@ -116,16 +116,19 @@ interface LauncherProps {
   pin: number;
   label: number;
   duration: number;
+  disabled: boolean;
 }
 
-function Launcher({ pin, label, duration }: LauncherProps) {
+function Launcher({ pin, label, duration, disabled }: LauncherProps) {
   const [clicked, setClicked] = useState(false);
   const [error, setError] = useState('');
+  const [dis, setDis] = useState(disabled);
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
     setClicked(true);
     try {
       await firePin(pin);
+      setDis(true);
     } catch (err) {
       setError(err as string);
     }
@@ -134,20 +137,20 @@ function Launcher({ pin, label, duration }: LauncherProps) {
   return (
     <>
       <Col>Launcher {label}</Col>
-      <Col><Button variant="danger" className="mr-2" value={pin} onClick={handleClick}>Fire</Button></Col>
+      <Col><Button variant={dis ? "secondary" : "danger"} disabled={dis} className="mr-2" value={pin} onClick={handleClick}>Fire</Button></Col>
       {clicked ? <LaunchAlert label={label} clear={setClicked} duration={duration} /> : null}
       {error !== '' ? <Alert variant='warning'>Failed to launch: {error}</Alert> : null}
     </>
   );
 }
 
-function LauncherList({ pins, duration }: PinConfig) {
+function LauncherList({ pins, triggered, duration }: PinConfig) {
   return (
     <Container fluid="sm" className="container-md">
     {
       pins.map((pin, label) =>
         <Row key={label} className="justify-content-md-center mb-2">
-          <Launcher pin={pin} label={label + 1} duration={duration} />
+          <Launcher pin={pin} label={label + 1} duration={duration} disabled={triggered.includes(pin)} />
         </Row>
       )
     }
@@ -188,7 +191,7 @@ function Header({ showConfig, setShowConfig }: HeaderProps) {
 }
 
 function App() {
-  const [pinConfig, setPinConfig] = useState({ pins: new Array(), duration: 0});
+  const [pinConfig, setPinConfig] = useState({ pins: new Array(), triggered: new Array(), duration: 0});
   const [showConfig, setShowConfig] = useState(false);
   const fetchPinConfig = async () => {
     try {
@@ -208,7 +211,7 @@ function App() {
       <Header showConfig={showConfig} setShowConfig={setShowConfig} />
       <ConfigModal config={pinConfig} showConfig={showConfig} setShowConfig={setShowConfig} fetchPinConfig={fetchPinConfig} />
       <main className="my-5 py-3">
-        <LauncherList pins={pinConfig.pins} duration={pinConfig.duration} />
+        <LauncherList pins={pinConfig.pins} triggered={pinConfig.triggered} duration={pinConfig.duration} />
       </main>
     </div>
   );

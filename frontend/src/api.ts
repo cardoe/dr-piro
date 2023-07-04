@@ -1,5 +1,6 @@
 export interface PinConfig {
     pins: Array<number>;
+    triggered: Array<number>;
     duration: number;
 }
 

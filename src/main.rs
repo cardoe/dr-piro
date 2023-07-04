@@ -27,6 +27,7 @@ mod error;
 
 struct AppState {
     pin_list: Mutex<Vec<u8>>,
+    triggered: Mutex<Vec<u8>>,
     duration: AtomicU8,
     config: PathBuf,
 }
@@ -45,6 +46,19 @@ impl AppState {
             Err(_) => Err(error::Error::Conflict),
         }
     }
+    fn trigger_pin(&self, pin_id: u8) -> Result<(), error::Error> {
+        match self.triggered.lock() {
+            Ok(mut x) => {
+                if x.contains(&pin_id) {
+                    Err(error::Error::BadRequest("pin is already triggered".into()))
+                } else {
+                    x.push(pin_id);
+                    Ok(())
+                }
+            }
+            Err(_) => Err(error::Error::Conflict),
+        }
+    }
 
     fn to_pin_config(&self) -> Result<PinConfig, error::Error> {
         let pins = if let Ok(pins) = self.pin_list.lock() {
@@ -53,8 +67,15 @@ impl AppState {
             Err(error::Error::Conflict)
         }?;
 
+        let triggered = if let Ok(triggered) = self.triggered.lock() {
+            Ok(triggered.clone())
+        } else {
+            Err(error::Error::Conflict)
+        }?;
+
         Ok(PinConfig {
             pins,
+            triggered,
             duration: self.duration.load(Ordering::SeqCst),
         })
     }
@@ -63,6 +84,7 @@ impl AppState {
 #[derive(Default, Deserialize, Serialize, Debug)]
 struct PinConfig {
     pins: Vec<u8>,
+    triggered: Vec<u8>,
     duration: u8,
 }
 
@@ -190,6 +212,7 @@ async fn fire_pin(
 
     debug!(pin_id = pin_id, "Toggling pin");
 
+    state.trigger_pin(pin_id)?;
     pin.set_high();
     tokio::time::sleep(Duration::from_secs(
         state.duration.load(Ordering::SeqCst) as u64
@@ -212,6 +235,7 @@ async fn fire_pin(
 ) -> Result<StatusCode, error::Error> {
     state.check_pin(pin_id)?;
     debug!(pin_id = pin_id, "Toggling pin (pretend)");
+    state.trigger_pin(pin_id)?;
     tokio::time::sleep(Duration::from_secs(
         state.duration.load(Ordering::SeqCst) as u64
     ))
@@ -301,6 +325,7 @@ async fn main() -> Result<(), Box<dyn ::std::error::Error>> {
 
     let shared_state = Arc::new(AppState {
         pin_list: Mutex::new(state.pins),
+        triggered: Mutex::new(vec![]),
         duration: AtomicU8::new(state.duration),
         config: cfg_path,
     });
