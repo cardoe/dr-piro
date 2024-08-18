@@ -2,7 +2,7 @@
 FROM --platform=$BUILDPLATFORM node:20 AS frontend
 
 WORKDIR /app/
-ENV PATH $PATH:/app/node_modules/.bin
+ENV PATH=$PATH:/app/node_modules/.bin
 
 COPY frontend/package.json ./
 COPY frontend/package-lock.json ./
