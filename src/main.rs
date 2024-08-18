@@ -396,11 +396,13 @@ async fn main() -> Result<(), Box<dyn ::std::error::Error>> {
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
     tracing::debug!("listening on http://{}", args.listen);
-    axum::Server::bind(&args.listen)
-        .serve(app.layer(TraceLayer::new_for_http()).into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&args.listen).await?;
+    axum::serve(
+        listener,
+        app.layer(TraceLayer::new_for_http()).into_make_service(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     Ok(())
 }
