@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
       - 'renovate/*'
+  pull_request:
 
 permissions:
   contents: read
@@ -31,5 +32,5 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm/v7
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: ${{ github.ref == 'refs/heads/main' && github.event != 'pull_request' }}
           tags: ghcr.io/${{ github.repository }}:latest
