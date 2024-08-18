@@ -7,5 +7,27 @@
     ":automergeLinters",
     ":automergeTypes",
     ":automergeMinor"
+  ],
+  "packageRules": [
+    {
+      "groupName": "Rust tokio family",
+      "matchDatasources": [
+        "crate"
+      ],
+      "matchPackageNames": [
+        "axum",
+        "tokio",
+        "tower-http"
+      ]
+    },
+    {
+      "groupName": "Rust serde",
+      "matchDatasources": [
+        "crate"
+      ],
+      "matchPackageNames": [
+        "serde*"
+      ]
+    }
   ]
 }
