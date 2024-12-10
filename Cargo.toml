@@ -17,4 +17,4 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [target.'cfg(all(target_arch = "arm", target_os = "linux"))'.dependencies]
-rppal = "0.20.0"
+rppal = "0.21.0"
