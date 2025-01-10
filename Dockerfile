@@ -14,7 +14,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # layer for building the rust code
-FROM --platform=$BUILDPLATFORM rust:1.83-bullseye AS rust
+FROM --platform=$BUILDPLATFORM rust:1.84-bullseye AS rust
 
 WORKDIR /app
 ARG TARGETPLATFORM
