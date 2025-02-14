@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM --platform=$BUILDPLATFORM node:20 AS frontend
+FROM --platform=$BUILDPLATFORM node:22 AS frontend
 
 WORKDIR /app/
 ENV PATH=$PATH:/app/node_modules/.bin
