@@ -31,7 +31,7 @@ RUN rustup target add $(./scripts/platform-to-rust-target.sh)
 RUN cargo build --release --target $(./scripts/platform-to-rust-target.sh)
 
 # where we'll run this
-FROM debian:bookworm AS deploy
+FROM debian:trixie AS deploy
 
 WORKDIR /opt/dr-piro
 
