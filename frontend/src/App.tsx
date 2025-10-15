@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Container from 'react-bootstrap/Container';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
@@ -20,8 +20,8 @@ interface ConfigModalProps {
 }
 
 function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: ConfigModalProps) {
-  const duration = useRef<HTMLInputElement>(null);
-  const pin = useRef<HTMLInputElement>(null);
+  const [durationValue, setDurationValue] = useState('');
+  const [pinValue, setPinValue] = useState('');
 
   const disablePinClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -39,12 +39,12 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
     event.preventDefault();
     const btn = event.currentTarget;
 
-    if (btn.value === "Duration" && duration?.current?.value !== undefined) {
-      const val = Number(duration.current.value);
+    if (btn.value === "Duration" && durationValue !== '') {
+      const val = Number(durationValue);
       setDuration(val);
       fetchPinConfig();
-    } else if (btn.value === "Enable" && pin?.current?.value !== undefined) {
-      const val = Number(pin.current.value);
+    } else if (btn.value === "Enable" && pinValue !== '') {
+      const val = Number(pinValue);
       enablePin(val);
       fetchPinConfig();
     }
@@ -61,7 +61,13 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
             <Row className="mb-3 align-items-center">
               <InputGroup as={Col}>
                 <InputGroup.Text>Duration</InputGroup.Text>
-                <Form.Control type="number" ref={duration} name="duration" placeholder={String(config.duration)} />
+                <Form.Control
+                  type="number"
+                  value={durationValue}
+                  onChange={(e) => setDurationValue(e.target.value)}
+                  name="duration"
+                  placeholder={String(config.duration)}
+                />
               </InputGroup>
               <Col>
                 <Button type="button" onClick={handleClick} value="Duration">Save</Button>
@@ -70,7 +76,12 @@ function ConfigModal({ config, showConfig, setShowConfig, fetchPinConfig}: Confi
             <Row className="mb-3 align-items-center">
               <InputGroup as={Col}>
                 <InputGroup.Text>Pin</InputGroup.Text>
-                <Form.Control type="number" ref={pin} name="pin" />
+                <Form.Control
+                  type="number"
+                  value={pinValue}
+                  onChange={(e) => setPinValue(e.target.value)}
+                  name="pin"
+                />
               </InputGroup>
               <Col>
                 <Button type="button" onClick={handleClick} value="Enable">Enable</Button>
